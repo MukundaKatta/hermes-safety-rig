@@ -1,0 +1,20 @@
+[project]
+name = "hermes-safety-rig"
+version = "0.1.0"
+description = "Drop-in safety layer for Hermes Agent: argument validation, egress allowlist, budget caps, structured output."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Mukunda Katta" }]
+dependencies = [
+  "agentvet>=0.1.0",
+  "agentguard>=0.1.0",
+  "agentcast>=0.1.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
