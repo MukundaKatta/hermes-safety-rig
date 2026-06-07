@@ -12,6 +12,7 @@ Each primitive is a separate published package; the rig composes them.
 from __future__ import annotations
 
 import functools
+import inspect
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable
 from urllib.parse import urlparse
@@ -81,15 +82,23 @@ class SafetyRig:
         """Decorator that wraps a tool function with the four checks."""
 
         def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+            sig = inspect.signature(fn)
+
             @functools.wraps(fn)
             def wrapped(*args: Any, **kwargs: Any) -> Any:
-                # 1. argument validation (agentvet stand-in; in production import the real lib)
+                # 1. argument validation (agentvet stand-in; in production import the real lib).
+                #    Bind positional + keyword args to parameter names first so the
+                #    schema check works no matter how the caller passes them.
                 if schema is not None:
-                    _validate_args(kwargs, schema)
-                # 2. budget check (charge optimistically before the call)
-                self._budget.check_and_charge(est_usd, est_tokens)
-                # 3. egress allowlist for any URL passed positionally or as kwargs
+                    bound = sig.bind_partial(*args, **kwargs)
+                    bound.apply_defaults()
+                    _validate_args(dict(bound.arguments), schema)
+                # 2. egress allowlist for any URL passed positionally or as kwargs
                 _check_egress(args, kwargs, allowlist=set(self.allowlist))
+                # 3. budget check — charge only after the gating checks pass so a
+                #    call rejected for bad args or a blocked domain does not consume
+                #    the daily budget.
+                self._budget.check_and_charge(est_usd, est_tokens)
                 # 4. invoke real tool
                 result = fn(*args, **kwargs)
                 # 5. output shape validation (agentcast stand-in)
@@ -102,26 +111,26 @@ class SafetyRig:
         return decorator
 
 
-def _validate_args(kwargs: dict[str, Any], schema: dict[str, str]) -> None:
-    """Reference implementation. In production this delegates to `agentvet`."""
+def _validate_args(provided: dict[str, Any], schema: dict[str, str]) -> None:
+    """Reference implementation. In production this delegates to `agentvet`.
+
+    ``provided`` maps parameter names to the values bound for this call
+    (positional and keyword args are both bound to names before validation).
+    """
     for key, type_hint in schema.items():
-        if key not in kwargs:
+        if key not in provided:
             raise ValueError(f"missing required arg: {key}")
-        value = kwargs[key]
+        value = provided[key]
         if type_hint == "string" and not isinstance(value, str):
             raise TypeError(
                 f"arg {key!r}: expected string, got {type(value).__name__}. "
                 f"Hermes Agent retry hint: pass {key!r} as a string."
             )
         if type_hint == "int" and not isinstance(value, int):
-            raise TypeError(
-                f"arg {key!r}: expected int, got {type(value).__name__}."
-            )
+            raise TypeError(f"arg {key!r}: expected int, got {type(value).__name__}.")
 
 
-def _check_egress(
-    args: tuple, kwargs: dict, *, allowlist: set[str]
-) -> None:
+def _check_egress(args: tuple, kwargs: dict, *, allowlist: set[str]) -> None:
     """Reference implementation. In production this delegates to `agentguard`."""
     if not allowlist:
         return
@@ -140,9 +149,7 @@ def _check_egress(
 def _validate_output(result: Any, output_schema: dict[str, str]) -> None:
     """Reference implementation. In production this delegates to `agentcast`."""
     if not isinstance(result, dict):
-        raise TypeError(
-            f"tool output: expected dict, got {type(result).__name__}"
-        )
+        raise TypeError(f"tool output: expected dict, got {type(result).__name__}")
     for key, type_hint in output_schema.items():
         if key not in result:
             raise ValueError(f"output missing required field: {key}")

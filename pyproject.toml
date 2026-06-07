@@ -6,11 +6,16 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Mukunda Katta" }]
-dependencies = [
-  "agentvet>=0.1.0",
-  "agentguard>=0.1.0",
-  "agentcast>=0.1.0",
-]
+# The four safety primitives (agentvet, agentguard, AgentBudget, agentcast) are
+# referenced conceptually in the docs as the production delegation targets, but
+# this package ships self-contained reference implementations in rig.py and does
+# not import them at runtime. Declaring them as install_requires breaks
+# `pip install` because they are not published, so they are intentionally not
+# listed here.
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
 
 [build-system]
 requires = ["setuptools>=68"]

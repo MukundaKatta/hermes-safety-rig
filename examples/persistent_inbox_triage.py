@@ -10,7 +10,6 @@ a real Hermes install. The point is to show what SafetyRig prevents.
 from __future__ import annotations
 
 import argparse
-import sys
 
 from hermes_safety_rig import (
     BudgetExceededError,
@@ -20,6 +19,7 @@ from hermes_safety_rig import (
 
 
 # Three "tools" the model might call.
+
 
 def send_calendar_invite_raw(title: str, start_iso: str) -> dict:
     """A raw, unvalidated tool. Model could pass wrong types and the calendar
@@ -51,7 +51,7 @@ def main() -> int:
     if args.with_rig:
         rig = SafetyRig(
             allowlist=["calendar.google.com", "gmail.googleapis.com"],
-            daily_usd_cap=0.25,        # tight cap for the demo
+            daily_usd_cap=0.25,  # tight cap for the demo
             daily_token_cap=500_000,
         )
         send_calendar_invite = rig.wrap(
@@ -62,8 +62,8 @@ def main() -> int:
             schema={"url": "string"},
         )(summarize_url_raw)
         chain_summarize_thread = rig.wrap(
-            schema={"message_ids": "string"},   # forces list-vs-string discipline
-            est_usd=0.50,                       # exceeds the daily cap on call 1
+            schema={"message_ids": "string"},  # forces list-vs-string discipline
+            est_usd=0.50,  # exceeds the daily cap on call 1
         )(chain_summarize_thread_raw)
     else:
         send_calendar_invite = send_calendar_invite_raw
